@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "activity": {
+    "minimum_age": 18,
+    "participation_variable": "PAQ650",
+    "yes_code": 1,
+    "no_code": 2,
+    "unknown_codes": [7, 9],
+    "days_variable": "PAQ655",
+    "valid_days": [1, 7],
+    "unknown_days_codes": [77, 99],
+    "minutes_variable": "PAD660",
+    "unknown_minutes_codes": [7777, 9999],
+    "weekly_minutes_rule": "No: zero only when follow-up values are absent; Yes: days times minutes when days are 1-7 and minutes are at least 10 and below 1440; otherwise null",
+    "wording_note": "2011-2012 participation wording lacks the explicit typical-week phrase used in later cycles"
+  },
+  "period_history": {
+    "source": "RHQ031",
+    "feature": "had_period_past_12_months",
+    "minimum_age": 12,
+    "female_only": true,
+    "yes_code": 1,
+    "no_code": 2,
+    "unknown_codes": [7, 9],
+    "note": "Does not measure cycle regularity or menstrual phase"
+  },
+  "pregnancy": {
+    "source": "RHD143",
+    "feature": "self_reported_pregnant",
+    "minimum_age": 20,
+    "maximum_age": 44,
+    "female_only": true,
+    "yes_code": 1,
+    "no_code": 2,
+    "unknown_codes": [7, 9],
+    "note": "Age eligibility does not guarantee the question was asked; retain missing values and raw responses"
+  }
+}

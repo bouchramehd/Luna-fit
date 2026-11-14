@@ -1,0 +1,33 @@
+{
+  "cycles": [
+    {
+      "label": "2011-2012",
+      "start_year": 2011,
+      "suffix": "G"
+    },
+    {
+      "label": "2013-2014",
+      "start_year": 2013,
+      "suffix": "H"
+    },
+    {
+      "label": "2015-2016",
+      "start_year": 2015,
+      "suffix": "I"
+    },
+    {
+      "label": "2017-2018",
+      "start_year": 2017,
+      "suffix": "J"
+    }
+  ],
+  "initial_components": [
+    "DEMO",
+    "DR1IFF",
+    "DR1TOT",
+    "BMX",
+    "PAQ",
+    "RHQ",
+    "CBC"
+  ]
+}

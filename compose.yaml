@@ -1,0 +1,19 @@
+services:
+  spark:
+    image: apache/spark:3.5.7-python3
+    working_dir: /workspace
+    environment:
+      HOME: /tmp
+      SPARK_LOCAL_IP: 127.0.0.1
+    ports:
+      - "127.0.0.1:4040:4040"
+    volumes:
+      - ./data_pipeline:/workspace/data_pipeline:ro
+      - ./data:/workspace/data
+    entrypoint: ["/opt/spark/bin/spark-submit"]
+    command:
+      - --master
+      - local[2]
+      - --conf
+      - spark.driver.memory=1g
+      - /workspace/data_pipeline/jobs/smoke_test.py

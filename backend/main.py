@@ -1,13 +1,17 @@
 from datetime import date
 
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from passlib.context import CryptContext
-
+import bcrypt
 import models
 import schemas
 from database import Base, engine, get_db
+
+from profile_api import router as profile_router
+from explanation_api import router as explanation_router
+from auth_api import router as auth_router
 
 
 # =========================================================
@@ -24,8 +28,12 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="Fit Pour Femme API",
     description="API de personnalisation sportive et nutritionnelle pour les femmes",
-    version="1.0.0"
+    version="1.0.0",
 )
+
+app.include_router(profile_router)
+app.include_router(explanation_router)
+app.include_router(auth_router)
 
 
 # =========================================================
@@ -34,7 +42,7 @@ app = FastAPI(
 
 pwd_context = CryptContext(
     schemes=["bcrypt"],
-    deprecated="auto"
+    deprecated="auto",
 )
 
 
@@ -46,29 +54,24 @@ pwd_context = CryptContext(
 def home():
     return {
         "message": "Bienvenue sur l'API Fit Pour Femme 💗",
-        "status": "API opérationnelle"
+        "status": "API opérationnelle",
     }
 
 
 @app.get("/health", tags=["General"])
 def health():
-    return {
-        "status": "OK"
-    }
+    return {"status": "OK"}
 
 
 @app.get("/database-test", tags=["General"])
 def database_test():
     with engine.connect() as connection:
-        result = connection.execute(
-            text("SELECT current_database();")
-        )
-
+        result = connection.execute(text("SELECT current_database();"))
         database_name = result.scalar()
 
     return {
         "status": "connected",
-        "database": database_name
+        "database": database_name,
     }
 
 
@@ -79,11 +82,11 @@ def database_test():
 @app.post(
     "/users",
     response_model=schemas.UserResponse,
-    tags=["Users"]
+    tags=["Users"],
 )
 def create_user(
     user: schemas.UserCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     existing_user = (
         db.query(models.User)
@@ -94,14 +97,25 @@ def create_user(
     if existing_user:
         raise HTTPException(
             status_code=400,
-            detail="Un compte existe déjà avec cette adresse email."
+            detail="Un compte existe déjà avec cette adresse email.",
         )
 
-    hashed_password = pwd_context.hash(user.password)
+    password_bytes = user.password.encode("utf-8")
 
+    if len(password_bytes) > 72:
+        raise HTTPException(
+            status_code=422,
+            detail="Password must not exceed 72 UTF-8 bytes.",
+        )
+
+    hashed_password = bcrypt.hashpw(
+        password_bytes,
+        bcrypt.gensalt(),
+    ).decode("utf-8")
+    
     new_user = models.User(
         email=user.email,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
     )
 
     db.add(new_user)
@@ -114,11 +128,11 @@ def create_user(
 @app.get(
     "/users/{user_id}",
     response_model=schemas.UserResponse,
-    tags=["Users"]
+    tags=["Users"],
 )
 def get_user(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -129,7 +143,7 @@ def get_user(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
     return user
@@ -142,11 +156,11 @@ def get_user(
 @app.post(
     "/profiles",
     response_model=schemas.ProfileResponse,
-    tags=["Profiles"]
+    tags=["Profiles"],
 )
 def create_profile(
     profile: schemas.ProfileCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -157,7 +171,7 @@ def create_profile(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
     existing_profile = (
@@ -169,12 +183,10 @@ def create_profile(
     if existing_profile:
         raise HTTPException(
             status_code=400,
-            detail="Cet utilisateur possède déjà un profil."
+            detail="Cet utilisateur possède déjà un profil.",
         )
 
-    new_profile = models.Profile(
-        **profile.model_dump()
-    )
+    new_profile = models.Profile(**profile.model_dump())
 
     db.add(new_profile)
     db.commit()
@@ -186,11 +198,11 @@ def create_profile(
 @app.get(
     "/profiles/{user_id}",
     response_model=schemas.ProfileResponse,
-    tags=["Profiles"]
+    tags=["Profiles"],
 )
 def get_profile(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     profile = (
         db.query(models.Profile)
@@ -201,7 +213,7 @@ def get_profile(
     if not profile:
         raise HTTPException(
             status_code=404,
-            detail="Profil introuvable."
+            detail="Profil introuvable.",
         )
 
     return profile
@@ -214,11 +226,11 @@ def get_profile(
 @app.post(
     "/cycles",
     response_model=schemas.MenstrualCycleResponse,
-    tags=["Menstrual Cycles"]
+    tags=["Menstrual Cycles"],
 )
 def create_cycle(
     cycle: schemas.MenstrualCycleCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -229,12 +241,10 @@ def create_cycle(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
-    new_cycle = models.MenstrualCycle(
-        **cycle.model_dump()
-    )
+    new_cycle = models.MenstrualCycle(**cycle.model_dump())
 
     db.add(new_cycle)
     db.commit()
@@ -246,11 +256,11 @@ def create_cycle(
 @app.get(
     "/cycles/{user_id}",
     response_model=list[schemas.MenstrualCycleResponse],
-    tags=["Menstrual Cycles"]
+    tags=["Menstrual Cycles"],
 )
 def get_cycles(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -261,17 +271,15 @@ def get_cycles(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
-    cycles = (
+    return (
         db.query(models.MenstrualCycle)
         .filter(models.MenstrualCycle.user_id == user_id)
         .order_by(models.MenstrualCycle.last_period_date.desc())
         .all()
     )
-
-    return cycles
 
 
 # =========================================================
@@ -280,11 +288,11 @@ def get_cycles(
 
 @app.get(
     "/cycle-status/{user_id}",
-    tags=["Menstrual Cycles"]
+    tags=["Menstrual Cycles"],
 )
 def get_cycle_status(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -295,7 +303,7 @@ def get_cycle_status(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
     cycle = (
@@ -308,28 +316,21 @@ def get_cycle_status(
     if not cycle:
         raise HTTPException(
             status_code=404,
-            detail="Aucun cycle menstruel trouvé."
+            detail="Aucun cycle menstruel trouvé.",
         )
 
     today = date.today()
-
-    days_since_period = (
-        today - cycle.last_period_date
-    ).days
+    days_since_period = (today - cycle.last_period_date).days
 
     if days_since_period < 0:
         raise HTTPException(
             status_code=400,
-            detail="La date des dernières règles ne peut pas être dans le futur."
+            detail="La date des dernières règles ne peut pas être dans le futur.",
         )
 
     cycle_length = cycle.average_cycle_length
     period_length = cycle.average_period_length
-
-    cycle_day = (
-        days_since_period % cycle_length
-    ) + 1
-
+    cycle_day = (days_since_period % cycle_length) + 1
     ovulation_day = cycle_length - 14
 
     if cycle_day <= period_length:
@@ -338,17 +339,14 @@ def get_cycle_status(
             "Phase menstruelle : adapter l'activité au niveau "
             "d'énergie et au confort."
         )
-
     elif cycle_day < ovulation_day - 2:
         phase = "folliculaire"
         message = (
             "Phase folliculaire : l'énergie peut progressivement augmenter."
         )
-
     elif cycle_day <= ovulation_day + 2:
         phase = "ovulatoire"
         message = "Phase ovulatoire estimée."
-
     else:
         phase = "lutéale"
         message = (
@@ -364,7 +362,7 @@ def get_cycle_status(
         "period_length": period_length,
         "estimated_ovulation_day": ovulation_day,
         "cycle_phase": phase,
-        "message": message
+        "message": message,
     }
 
 
@@ -375,11 +373,11 @@ def get_cycle_status(
 @app.post(
     "/symptoms",
     response_model=schemas.SymptomResponse,
-    tags=["Symptoms"]
+    tags=["Symptoms"],
 )
 def create_symptom(
     symptom: schemas.SymptomCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -390,16 +388,11 @@ def create_symptom(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
-    symptom_data = symptom.model_dump(
-        exclude_none=True
-    )
-
-    new_symptom = models.Symptom(
-        **symptom_data
-    )
+    symptom_data = symptom.model_dump(exclude_none=True)
+    new_symptom = models.Symptom(**symptom_data)
 
     db.add(new_symptom)
     db.commit()
@@ -411,20 +404,18 @@ def create_symptom(
 @app.get(
     "/symptoms/{user_id}",
     response_model=list[schemas.SymptomResponse],
-    tags=["Symptoms"]
+    tags=["Symptoms"],
 )
 def get_symptoms(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    symptoms = (
+    return (
         db.query(models.Symptom)
         .filter(models.Symptom.user_id == user_id)
         .order_by(models.Symptom.recorded_date.desc())
         .all()
     )
-
-    return symptoms
 
 
 # =========================================================
@@ -434,11 +425,11 @@ def get_symptoms(
 @app.post(
     "/progress",
     response_model=schemas.ProgressResponse,
-    tags=["Progress"]
+    tags=["Progress"],
 )
 def create_progress(
     progress: schemas.ProgressCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -449,16 +440,11 @@ def create_progress(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
-    progress_data = progress.model_dump(
-        exclude_none=True
-    )
-
-    new_progress = models.Progress(
-        **progress_data
-    )
+    progress_data = progress.model_dump(exclude_none=True)
+    new_progress = models.Progress(**progress_data)
 
     db.add(new_progress)
     db.commit()
@@ -470,20 +456,18 @@ def create_progress(
 @app.get(
     "/progress/{user_id}",
     response_model=list[schemas.ProgressResponse],
-    tags=["Progress"]
+    tags=["Progress"],
 )
 def get_progress(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    progress_entries = (
+    return (
         db.query(models.Progress)
         .filter(models.Progress.user_id == user_id)
         .order_by(models.Progress.recorded_date.desc())
         .all()
     )
-
-    return progress_entries
 
 
 # =========================================================
@@ -493,15 +477,13 @@ def get_progress(
 @app.post(
     "/exercises",
     response_model=schemas.ExerciseResponse,
-    tags=["Exercises"]
+    tags=["Exercises"],
 )
 def create_exercise(
     exercise: schemas.ExerciseCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    new_exercise = models.Exercise(
-        **exercise.model_dump()
-    )
+    new_exercise = models.Exercise(**exercise.model_dump())
 
     db.add(new_exercise)
     db.commit()
@@ -513,27 +495,20 @@ def create_exercise(
 @app.get(
     "/exercises",
     response_model=list[schemas.ExerciseResponse],
-    tags=["Exercises"]
+    tags=["Exercises"],
 )
-def get_exercises(
-    db: Session = Depends(get_db)
-):
-    exercises = (
-        db.query(models.Exercise)
-        .all()
-    )
-
-    return exercises
+def get_exercises(db: Session = Depends(get_db)):
+    return db.query(models.Exercise).all()
 
 
 @app.get(
     "/exercises/{exercise_id}",
     response_model=schemas.ExerciseResponse,
-    tags=["Exercises"]
+    tags=["Exercises"],
 )
 def get_exercise(
     exercise_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     exercise = (
         db.query(models.Exercise)
@@ -544,7 +519,7 @@ def get_exercise(
     if not exercise:
         raise HTTPException(
             status_code=404,
-            detail="Exercice introuvable."
+            detail="Exercice introuvable.",
         )
 
     return exercise
@@ -557,11 +532,11 @@ def get_exercise(
 @app.post(
     "/workout-plans",
     response_model=schemas.WorkoutPlanResponse,
-    tags=["Workout Plans"]
+    tags=["Workout Plans"],
 )
 def create_workout_plan(
     plan: schemas.WorkoutPlanCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -572,12 +547,10 @@ def create_workout_plan(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
-    new_plan = models.WorkoutPlan(
-        **plan.model_dump()
-    )
+    new_plan = models.WorkoutPlan(**plan.model_dump())
 
     db.add(new_plan)
     db.commit()
@@ -589,20 +562,18 @@ def create_workout_plan(
 @app.get(
     "/workout-plans/{user_id}",
     response_model=list[schemas.WorkoutPlanResponse],
-    tags=["Workout Plans"]
+    tags=["Workout Plans"],
 )
 def get_workout_plans(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    plans = (
+    return (
         db.query(models.WorkoutPlan)
         .filter(models.WorkoutPlan.user_id == user_id)
         .order_by(models.WorkoutPlan.created_at.desc())
         .all()
     )
-
-    return plans
 
 
 # =========================================================
@@ -612,11 +583,11 @@ def get_workout_plans(
 @app.post(
     "/nutrition-plans",
     response_model=schemas.NutritionPlanResponse,
-    tags=["Nutrition Plans"]
+    tags=["Nutrition Plans"],
 )
 def create_nutrition_plan(
     plan: schemas.NutritionPlanCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     user = (
         db.query(models.User)
@@ -627,12 +598,10 @@ def create_nutrition_plan(
     if not user:
         raise HTTPException(
             status_code=404,
-            detail="Utilisateur introuvable."
+            detail="Utilisateur introuvable.",
         )
 
-    new_plan = models.NutritionPlan(
-        **plan.model_dump()
-    )
+    new_plan = models.NutritionPlan(**plan.model_dump())
 
     db.add(new_plan)
     db.commit()
@@ -644,17 +613,15 @@ def create_nutrition_plan(
 @app.get(
     "/nutrition-plans/{user_id}",
     response_model=list[schemas.NutritionPlanResponse],
-    tags=["Nutrition Plans"]
+    tags=["Nutrition Plans"],
 )
 def get_nutrition_plans(
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    plans = (
+    return (
         db.query(models.NutritionPlan)
         .filter(models.NutritionPlan.user_id == user_id)
         .order_by(models.NutritionPlan.created_at.desc())
         .all()
     )
-
-    return plans

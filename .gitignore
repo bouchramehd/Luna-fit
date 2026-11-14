@@ -1,19 +1,41 @@
-# Python
+# Python environments and caches
+.venv*/
+venv/
 backend/venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 
-# Environment variables / passwords
+# Secrets
 .env
-backend/.env
+.env.*
+!.env.example
 
-# Node
-frontend/node_modules/
+# Dependencies and builds
+node_modules/
+dist/
+coverage/
 
-# IDE
+# NHANES data and generated artifacts
+/data/
+/artifacts/
+/reports/
+/work/
+*.joblib
+*.pkl
+*.log
+
+# Generated inspection files
+/cycle_inspection.txt
+/shared_features.txt
+/codebook_check.txt
+/lab_methods.txt
+/tabpfn_login_help.txt
+/profile_summary.txt
+/backend_check.txt
+
+# Editors and operating system
 .vscode/
 .idea/
-
-# OS
 .DS_Store
 Thumbs.db
